@@ -65,10 +65,10 @@ function generateConnectionErrorHtml(url: string, title: string, message: string
     <div class="url-box">Target: ${safeUrl}</div>
 
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <button class="btn-primary" onclick="window.FlashLiteAPI.performAction('retry_connection', '${safeUrl}')">
+      <button type="button" aria-label="Retry loading target website" class="btn-primary" onclick="window.FlashLiteAPI.performAction('retry_connection', '${safeUrl}')">
         🔄 Retry Connection
       </button>
-      <button class="btn-secondary" onclick="window.FlashLiteAPI.openNewTab('amn://newtab')">
+      <button type="button" aria-label="Return to safe home new tab" class="btn-secondary" onclick="window.FlashLiteAPI.openNewTab('amn://newtab')">
         🏠 Return Home
       </button>
     </div>
