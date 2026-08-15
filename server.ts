@@ -55,7 +55,7 @@ function getGenAIClient(customApiKey?: string): GoogleGenAI | null {
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3300;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
   app.use(cors());
   app.use(express.json({ limit: "10mb" }));
@@ -66,6 +66,90 @@ async function startServer() {
       status: "ok",
       hasServerKey: !!process.env.GEMINI_API_KEY,
     });
+  });
+
+  // Reverse Proxy & Header Sanitizer Endpoint
+  app.get("/api/proxy", async (req, res) => {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl) {
+      return res.status(400).json({ error: true, message: "Missing ?url= query parameter" });
+    }
+
+    let parsedUrl: URL;
+    try {
+      let normalized = targetUrl.trim();
+      if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+        normalized = "https://" + normalized;
+      }
+      parsedUrl = new URL(normalized);
+    } catch {
+      return res.status(400).json({ error: true, message: "Invalid URL provided" });
+    }
+
+    try {
+      const userAgent = "Mozilla/5.0 (X-UA-Compatible; Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const targetResponse = await fetch(parsedUrl.href, {
+        headers: {
+          "User-Agent": userAgent,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "cross-site",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const targetOrigin = new URL(targetResponse.url || parsedUrl.href).origin;
+      const contentType = targetResponse.headers.get("content-type") || "text/html";
+
+      // Strip blocking response headers
+      res.removeHeader("x-frame-options");
+      res.removeHeader("content-security-policy");
+      res.removeHeader("content-security-policy-report-only");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("X-Proxied-By", "AmniSphere-Reverse-Proxy");
+
+      if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml") || contentType.includes("text/plain")) {
+        let html = await targetResponse.text();
+
+        // Strip HTML-level CSP meta tags
+        html = html.replace(/<meta[^>]*http-equiv=["']?(Content-Security-Policy|X-Frame-Options)["']?[^>]*>/gi, "");
+
+        // Inject <base href="${targetOrigin}/"> tag into <head> so relative links, images, scripts and CSS load properly
+        const baseTag = `<base href="${targetOrigin}/" target="_self">`;
+        if (/<head[^>]*>/i.test(html)) {
+          html = html.replace(/<head[^>]*>/i, `$&${baseTag}`);
+        } else if (/<html[^>]*>/i.test(html)) {
+          html = html.replace(/<html[^>]*>/i, `$&<head>${baseTag}</head>`);
+        } else {
+          html = `${baseTag}${html}`;
+        }
+
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(targetResponse.status).send(html);
+      } else {
+        // Non-HTML media/asset buffer
+        const arrayBuffer = await targetResponse.arrayBuffer();
+        res.setHeader("Content-Type", contentType);
+        return res.status(targetResponse.status).send(Buffer.from(arrayBuffer));
+      }
+    } catch (err: any) {
+      console.error("Proxy fetch error for:", targetUrl, err?.message);
+      const isTimeout = err?.name === "AbortError";
+      return res.status(isTimeout ? 504 : 502).json({
+        error: true,
+        message: isTimeout ? "Target server connection timed out" : (err?.message || "Failed to reach target server"),
+        targetUrl,
+      });
+    }
   });
 
   // Streaming generation route using Server-Sent Events (SSE)
@@ -315,19 +399,15 @@ Create a complete, detailed, realistic-looking, ethics-aligned web page based on
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
+  // Static files in production mode
+  if (process.env.NODE_ENV === "production") {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*all", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*all", (_req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
   }
 
   app.listen(PORT, "127.0.0.1", () => {

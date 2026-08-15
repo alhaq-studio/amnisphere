@@ -19,8 +19,8 @@ const SHELL_HTML = `<!DOCTYPE html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: blob: https:; connect-src 'none'; frame-src 'none';">
-    <script src="https://cdn.tailwindcss.com"></script>
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https:; style-src 'unsafe-inline' https: data:; font-src https: data:; img-src https: http: data: blob:; connect-src https:; frame-src 'none';">
+    <base id="amnisphere-base-tag" href="/">
     <style id="amnisphere-cosmetic-shield"></style>
     <style id="amnisphere-extension-styles"></style>
     <script id="amnisphere-core-api">
@@ -112,6 +112,10 @@ const SHELL_HTML = `<!DOCTYPE html>
             window.parent.postMessage({ type: 'OPEN_SETTINGS' }, '*');
             return;
           }
+          if (lower === 'retry_connection' || lower === 'retry') {
+            window.parent.postMessage({ type: 'NAVIGATE', url: payload || window.location.href, text: 'Retry Connection' }, '*');
+            return;
+          }
           window.parent.postMessage({ type: 'ACTION', intent, payload, formState }, '*');
         }
       };
@@ -127,24 +131,68 @@ const SHELL_HTML = `<!DOCTYPE html>
         const link = e.target.closest('a');
         if (link) {
           const href = link.getAttribute('href') || '';
-          if (href === '#' && (link.onclick || link.getAttribute('onclick'))) return;
+          if (!href || (href === '#' && (link.onclick || link.getAttribute('onclick')))) return;
+          if (href.startsWith('javascript:')) return;
 
           e.preventDefault();
           const text = link.innerText || href;
           const isTargetBlank = link.getAttribute('target') === '_blank' || link.target === '_blank';
           const isSpecialClick = e.ctrlKey || e.metaKey || e.button === 1;
 
+          let targetUrl = href;
+          try {
+            targetUrl = new URL(href, document.baseURI || window.location.href).href;
+          } catch {}
+
           if (isTargetBlank || isSpecialClick) {
-            window.parent.postMessage({ type: 'OPEN_NEW_TAB', url: href || 'amn://newtab' }, '*');
+            window.parent.postMessage({ type: 'OPEN_NEW_TAB', url: targetUrl || 'amn://newtab' }, '*');
           } else {
-            window.FlashLiteAPI.navigate(href, text);
+            window.FlashLiteAPI.navigate(targetUrl, text);
           }
+        }
+      });
+
+      // Intercept form submissions
+      document.addEventListener('submit', (e) => {
+        const form = e.target.closest('form') || e.target;
+        if (form && form.tagName === 'FORM') {
+          e.preventDefault();
+          const action = form.getAttribute('action') || '';
+          const method = (form.getAttribute('method') || 'GET').toUpperCase();
+          const formState = getFormState();
+          
+          let targetUrl = action;
+          try {
+            targetUrl = new URL(action || window.location.href, document.baseURI || window.location.href).href;
+          } catch {}
+
+          if (method === 'GET') {
+            const queryParams = formState.filter(function(f) { return f.name; }).map(function(f) {
+              return encodeURIComponent(f.name) + '=' + encodeURIComponent(f.value);
+            }).join('&');
+            if (queryParams) {
+              targetUrl = targetUrl.indexOf('?') !== -1 ? targetUrl + '&' + queryParams : targetUrl + '?' + queryParams;
+            }
+          }
+
+          window.parent.postMessage({
+            type: 'NAVIGATE',
+            url: targetUrl,
+            text: 'Form Submit',
+            formState
+          }, '*');
         }
       });
 
       // Handle message events from parent browser engine
       window.addEventListener('message', (e) => {
         if (e.data?.type === 'CONTENT_UPDATE') {
+          // Update base tag if provided
+          if (e.data.baseHref) {
+            const baseEl = document.getElementById('amnisphere-base-tag');
+            if (baseEl) baseEl.setAttribute('href', e.data.baseHref);
+          }
+
           document.body.innerHTML = e.data.html;
           document.body.className = 'min-h-screen ' + (e.data.bodyClasses || '');
           document.body.setAttribute('style', e.data.bodyStyle || '');
@@ -161,6 +209,25 @@ const SHELL_HTML = `<!DOCTYPE html>
           if (extStyle && e.data.extensionCss) {
             extStyle.textContent = e.data.extensionCss;
           }
+
+          // Inject head link stylesheets
+          document.head.querySelectorAll('link[data-proxy-link]').forEach(el => el.remove());
+          (e.data.headLinks || []).forEach(href => {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = href;
+            link.setAttribute('data-proxy-link', 'true');
+            document.head.appendChild(link);
+          });
+
+          // Inject head styles
+          document.head.querySelectorAll('style[data-proxy-style]').forEach(el => el.remove());
+          (e.data.headStyles || []).forEach(css => {
+            const style = document.createElement('style');
+            style.setAttribute('data-proxy-style', 'true');
+            style.textContent = css;
+            document.head.appendChild(style);
+          });
 
           // Inject fonts
           document.head.querySelectorAll('link[data-amn-font]').forEach(el => el.remove());
@@ -235,17 +302,42 @@ export const Sandbox: React.FC<SandboxProps> = ({
     let cleanContent = htmlContent;
     const isDark = !/<meta\s+name=["']color-scheme["']\s+content=["']light["']/i.test(htmlContent);
 
-    // Extract fonts
+    // Extract base href
+    let extractedBaseHref = '';
+    const baseMatch = htmlContent.match(/<base[^>]*href=["']([^"']+)["']/i);
+    if (baseMatch) {
+      extractedBaseHref = baseMatch[1];
+    }
+
+    // Extract fonts & head links
     const headMatch = htmlContent.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
     const fontHrefs: string[] = [];
+    const headLinks: string[] = [];
+    const headStyles: string[] = [];
+
     if (headMatch) {
-      const linkMatches = headMatch[1].match(/<link[^>]*>/gi);
+      const headHtml = headMatch[1];
+      const linkMatches = headHtml.match(/<link[^>]*>/gi);
       if (linkMatches) {
         linkMatches.forEach(tag => {
           const hrefMatch = tag.match(/href="([^"]+)"/i) || tag.match(/href='([^']+)'/i);
-          if (hrefMatch && hrefMatch[1].startsWith('https://fonts.googleapis.com/')) {
-            fontHrefs.push(hrefMatch[1]);
+          const relMatch = tag.match(/rel="([^"]+)"/i) || tag.match(/rel='([^']+)'/i);
+          if (hrefMatch) {
+            const href = hrefMatch[1];
+            if (href.startsWith('https://fonts.googleapis.com/')) {
+              fontHrefs.push(href);
+            } else if (relMatch && relMatch[1].includes('stylesheet')) {
+              headLinks.push(href);
+            }
           }
+        });
+      }
+
+      const styleMatches = headHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+      if (styleMatches) {
+        styleMatches.forEach(tag => {
+          const innerCss = tag.replace(/<\/?style[^>]*>/gi, '');
+          if (innerCss.trim()) headStyles.push(innerCss);
         });
       }
     }
@@ -274,6 +366,9 @@ export const Sandbox: React.FC<SandboxProps> = ({
     sendContentUpdate({
       type: 'CONTENT_UPDATE',
       html: cleanContent,
+      baseHref: extractedBaseHref,
+      headLinks,
+      headStyles,
       bodyClasses,
       bodyStyle: `background-color: ${isDark ? '#090d16' : '#ffffff'}; color: ${isDark ? '#f1f5f9' : '#0f172a'}; ${bodyInlineStyle}`,
       colorScheme: isDark ? 'dark' : 'light',

@@ -34,6 +34,49 @@ const createInitialTab = (): Tab => ({
   networkLogs: [],
 });
 
+function generateConnectionErrorHtml(url: string, title: string, message: string): string {
+  const safeUrl = (url || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const safeTitle = (title || 'Connection Error').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const safeMsg = (message || 'Failed to connect to target server').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <title>${safeTitle} - AmniSphere</title>
+  <meta name="color-scheme" content="dark">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #030712; color: #f1f5f9; margin: 0; padding: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { max-width: 520px; width: 90%; background: #090d16; border: 1px solid #1e293b; border-radius: 16px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+    .icon-box { width: 44px; height: 44px; border-radius: 10px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 16px; }
+    .btn-primary { background: #059669; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.2s; }
+    .btn-primary:hover { background: #10b981; }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.2s; }
+    .btn-secondary:hover { background: #334155; color: white; }
+    .url-box { background: #030712; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; font-family: monospace; font-size: 11px; color: #94a3b8; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-box">⚠️</div>
+    <h1 style="font-size: 18px; font-weight: 700; color: #ffffff; margin: 0 0 8px 0;">${safeTitle}</h1>
+    <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin: 0 0 16px 0;">${safeMsg}</p>
+    
+    <div class="url-box">Target: ${safeUrl}</div>
+
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <button class="btn-primary" onclick="window.FlashLiteAPI.performAction('retry_connection', '${safeUrl}')">
+        🔄 Retry Connection
+      </button>
+      <button class="btn-secondary" onclick="window.FlashLiteAPI.openNewTab('amn://newtab')">
+        🏠 Return Home
+      </button>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export const App: React.FC = () => {
   // 1. Core State
   const [settings, setSettings] = useState<AmnBrowserSettings>(() => StorageService.loadSettings());
@@ -269,6 +312,113 @@ export const App: React.FC = () => {
       loading: true,
       loadingMessage: `Loading ${sitename}...`,
     }));
+
+    // 4. Live Web Proxy Navigation Pipeline
+    if (actionType === 'navigate' && (resolved.url.startsWith('http://') || resolved.url.startsWith('https://'))) {
+      try {
+        const proxyRes = await fetch(`/api/proxy?url=${encodeURIComponent(resolved.url)}`, {
+          signal: abortControllerRef.current?.signal,
+        });
+
+        if (!proxyRes.ok) {
+          let errorMsg = `Server returned HTTP status ${proxyRes.status}`;
+          try {
+            const errJson = await proxyRes.json();
+            if (errJson.message) errorMsg = errJson.message;
+          } catch {}
+          throw new Error(errorMsg);
+        }
+
+        const liveHtml = await proxyRes.text();
+
+        // Apply Al-Haq Ethics Shield sanitization & threat metric counts
+        const sanitized = EthicsShieldService.sanitizeHtml(liveHtml, settings?.shield);
+        const title = extractTitleFromHtml(sanitized.sanitizedHtml);
+        const finalBreadcrumb = title || currentBreadcrumb;
+
+        const newPage: Page = {
+          id: `page-${Date.now()}`,
+          url: resolved.url,
+          title: finalBreadcrumb.page ? `${finalBreadcrumb.sitename} - ${finalBreadcrumb.page}` : finalBreadcrumb.sitename,
+          html: sanitized.sanitizedHtml,
+          breadcrumb: finalBreadcrumb,
+          scrollPosition: 0,
+          timestamp: Date.now(),
+          tokenCount: { input: 0, output: 0 },
+          groundingSources: [],
+          searchEntryPointHtml: '',
+          blockedTrackersCount: sanitized.blockedTrackers,
+          blockedAdsCount: sanitized.blockedAds,
+          blockedEthicsCount: 0,
+          cosmeticHidesCount: sanitized.cosmeticHides,
+        };
+
+        const updatedHist = StorageService.saveHistoryItem({
+          id: `hist-${Date.now()}`,
+          title: finalBreadcrumb.page ? `${finalBreadcrumb.sitename} › ${finalBreadcrumb.page}` : finalBreadcrumb.sitename,
+          url: resolved.url,
+          timestamp: Date.now(),
+          visitCount: 1,
+        });
+        setHistory(updatedHist);
+
+        updateActiveTab(tab => {
+          const nextHistory = [...tab.history.slice(0, tab.currentIndex + 1), newPage];
+          return {
+            ...tab,
+            currentUrl: resolved.url,
+            breadcrumb: finalBreadcrumb,
+            history: nextHistory,
+            currentIndex: nextHistory.length - 1,
+            generatedContent: sanitized.sanitizedHtml,
+            loading: false,
+            loadingMessage: '',
+          };
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+
+        console.error("Proxy navigation error:", err);
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        const errorHtml = generateConnectionErrorHtml(
+          resolved.url,
+          isOffline ? 'No Internet Connection' : 'Unable to Connect to Target Server',
+          isOffline
+            ? 'Your device appears to be offline. Please verify your network connection and retry.'
+            : `AmniSphere reverse proxy encountered an error: ${err?.message || 'The server did not respond.'}`
+        );
+
+        const errorBreadcrumb = { sitename: 'Connection Error', page: 'Error' };
+        const errPage: Page = {
+          id: `page-err-${Date.now()}`,
+          url: resolved.url,
+          title: 'Connection Error',
+          html: errorHtml,
+          breadcrumb: errorBreadcrumb,
+          scrollPosition: 0,
+          timestamp: Date.now(),
+          tokenCount: { input: 0, output: 0 },
+          groundingSources: [],
+          blockedEthicsCount: 0,
+        };
+
+        updateActiveTab(tab => {
+          const nextHistory = [...tab.history.slice(0, tab.currentIndex + 1), errPage];
+          return {
+            ...tab,
+            currentUrl: resolved.url,
+            breadcrumb: errorBreadcrumb,
+            history: nextHistory,
+            currentIndex: nextHistory.length - 1,
+            generatedContent: errorHtml,
+            loading: false,
+            loadingMessage: '',
+          };
+        });
+        return;
+      }
+    }
 
     let rawAccumulatedHtml = '';
     let lastSanitizedHtml = '';
@@ -506,6 +656,10 @@ export const App: React.FC = () => {
     const lower = (intent || '').toLowerCase().trim();
     if (lower === 'open new tab' || lower === 'new tab' || lower === 'newtab' || lower === 'open_new_tab') {
       handleNewTab(payload || 'amn://newtab');
+      return;
+    }
+    if (lower === 'retry_connection' || lower === 'retry') {
+      loadPage(payload || activeTab.currentUrl, 'navigate');
       return;
     }
     loadPage(activeTab.currentUrl, 'action', intent, payload, formState);
