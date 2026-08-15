@@ -64,8 +64,8 @@ AmniSphere enforces strict local-first data processing:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Afrasyaab-GH/AmniSphere.git
-cd AmniSphere
+git clone https://github.com/alhaq-studio/amnisphere.git
+cd amnisphere
 
 # Install dependencies
 npm install
