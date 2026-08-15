@@ -53,36 +53,6 @@ function getGenAIClient(customApiKey?: string): GoogleGenAI | null {
   return new GoogleGenAI({ apiKey: key });
 }
 
-// server.ts - HTML Sanitization Middleware
-export function sanitizeTargetHtml(html: string, targetUrl: string): string {
-  let baseUrl = targetUrl;
-  try {
-    const urlObj = new URL(targetUrl);
-    const origin = urlObj.origin;
-    baseUrl = origin + urlObj.pathname.substring(0, urlObj.pathname.lastIndexOf('/') + 1);
-  } catch {}
-
-  let sanitized = html
-    // 1. Remove Subresource Integrity (SRI) and cross-origin blocks so stylesheets & scripts execute
-    .replace(/\sintegrity="[^"]*"/gi, '')
-    .replace(/\sintegrity='[^']*'/gi, '')
-    .replace(/\scrossorigin="[^"]*"/gi, '')
-    .replace(/\scrossorigin='[^']*'/gi, '')
-    // 2. Strip HTML-level CSP and Frame restriction meta tags
-    .replace(/<meta[^>]*http-equiv=["']?(Content-Security-Policy|X-Frame-Options)["']?[^>]*>/gi, '');
-
-  // 3. Inject <base> tag at the top of <head> to resolve relative CSS/JS/images
-  if (/<head([^>]*)>/i.test(sanitized)) {
-    sanitized = sanitized.replace(/<head([^>]*)>/i, `<head$1><base href="${baseUrl}">`);
-  } else if (/<html([^>]*)>/i.test(sanitized)) {
-    sanitized = sanitized.replace(/<html([^>]*)>/i, `<html$1><head><base href="${baseUrl}"></head>`);
-  } else {
-    sanitized = `<base href="${baseUrl}">${sanitized}`;
-  }
-
-  return sanitized;
-}
-
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -137,6 +107,7 @@ async function startServer() {
       });
       clearTimeout(timeoutId);
 
+      const targetOrigin = new URL(targetResponse.url || parsedUrl.href).origin;
       const contentType = targetResponse.headers.get("content-type") || "text/html";
 
       // Strip blocking response headers
@@ -147,9 +118,20 @@ async function startServer() {
       res.setHeader("X-Proxied-By", "AmniSphere-Reverse-Proxy");
 
       if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml") || contentType.includes("text/plain")) {
-        const rawHtml = await targetResponse.text();
-        const finalUrl = targetResponse.url || parsedUrl.href;
-        const html = sanitizeTargetHtml(rawHtml, finalUrl);
+        let html = await targetResponse.text();
+
+        // Strip HTML-level CSP meta tags
+        html = html.replace(/<meta[^>]*http-equiv=["']?(Content-Security-Policy|X-Frame-Options)["']?[^>]*>/gi, "");
+
+        // Inject <base href="${targetOrigin}/"> tag into <head> so relative links, images, scripts and CSS load properly
+        const baseTag = `<base href="${targetOrigin}/" target="_self">`;
+        if (/<head[^>]*>/i.test(html)) {
+          html = html.replace(/<head[^>]*>/i, `$&${baseTag}`);
+        } else if (/<html[^>]*>/i.test(html)) {
+          html = html.replace(/<html[^>]*>/i, `$&<head>${baseTag}</head>`);
+        } else {
+          html = `${baseTag}${html}`;
+        }
 
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         return res.status(targetResponse.status).send(html);
