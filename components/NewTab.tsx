@@ -4,7 +4,7 @@ import {
   Clock, Compass, Moon, Sun, Lock, ChevronRight, CheckCircle2
 } from 'lucide-react';
 import { AmnBrowserSettings, BookmarkItem, SearchEngine, ShieldStats } from '../types';
-import { SEARCH_ENGINES } from '../utils/urlHelpers';
+import { SEARCH_ENGINES, resolveOmnibarInput } from '../utils/urlHelpers';
 
 interface NewTabProps {
   settings: AmnBrowserSettings;
@@ -64,14 +64,8 @@ export const NewTab: React.FC<NewTabProps> = ({
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) return;
-    const isUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('amn://') || (trimmed.includes('.') && !trimmed.includes(' '));
-    if (isUrl) {
-      onNavigate('url', trimmed);
-    } else {
-      const selectedEng = SEARCH_ENGINES[activeEngine] || SEARCH_ENGINES.duckduckgo;
-      const searchUrl = selectedEng.searchUrl.replace('%s', encodeURIComponent(trimmed));
-      onNavigate('url', searchUrl);
-    }
+    const resolved = resolveOmnibarInput(trimmed, activeEngine);
+    onNavigate('url', resolved.url);
   };
 
   const handleTopicClick = (topic: string) => {
