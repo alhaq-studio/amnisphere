@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { OuterFrame } from './components/OuterFrame';
 import { BrowserShell } from './components/BrowserShell';
 import { streamPageGeneration } from './services/geminiService';
 import { EthicsShieldService } from './services/ethicsShieldService';
@@ -666,44 +665,42 @@ export const App: React.FC = () => {
   }, [activeTab.currentUrl, handleNewTab, loadPage]);
 
   return (
-    <OuterFrame shieldStats={shieldStats} onOpenNewTab={handleNewTab}>
-      <BrowserShell
-        tabs={tabs}
-        activeTabIndex={activeTabIndex}
-        settings={settings}
-        shieldStats={shieldStats}
-        bookmarks={bookmarks}
-        history={history}
-        extensions={extensions}
-        onNewTab={handleNewTab}
-        onCloseTab={handleCloseTab}
-        onSwitchTab={handleSwitchTab}
-        onPinTab={handlePinTab}
-        onMuteTab={handleMuteTab}
-        onNavigate={(type, target) => loadPage(target, type === 'edit' ? 'edit' : 'navigate')}
-        onSandboxNavigate={handleSandboxNavigate}
-        onSandboxAction={handleSandboxAction}
-        onBack={handleBack}
-        onForward={handleForward}
-        onRefresh={handleRefresh}
-        onStop={handleStop}
-        onHome={handleHome}
-        onSaveSettings={handleSaveSettings}
-        onToggleExtension={handleToggleExtension}
-        onRemoveExtension={handleRemoveExtension}
-        onRefreshExtensions={handleRefreshExtensions}
-        onAddBookmark={handleAddBookmark}
-        onRemoveBookmark={handleRemoveBookmark}
-        onClearHistory={handleClearHistory}
-        onToggleShieldSite={handleToggleShieldSite}
-        onConsoleLog={handleConsoleLog}
-        onNetworkRequest={handleNetworkRequest}
-        onClearConsole={handleClearConsole}
-        onClearNetwork={handleClearNetwork}
-        onExecuteDevToolsCommand={handleExecuteDevToolsCommand}
-        cosmeticCss={cosmeticCss}
-      />
-    </OuterFrame>
+    <BrowserShell
+      tabs={tabs}
+      activeTabIndex={activeTabIndex}
+      settings={settings}
+      shieldStats={shieldStats}
+      bookmarks={bookmarks}
+      history={history}
+      extensions={extensions}
+      onNewTab={handleNewTab}
+      onCloseTab={handleCloseTab}
+      onSwitchTab={handleSwitchTab}
+      onPinTab={handlePinTab}
+      onMuteTab={handleMuteTab}
+      onNavigate={(type, target) => loadPage(target, type === 'edit' ? 'edit' : 'navigate')}
+      onSandboxNavigate={handleSandboxNavigate}
+      onSandboxAction={handleSandboxAction}
+      onBack={handleBack}
+      onForward={handleForward}
+      onRefresh={handleRefresh}
+      onStop={handleStop}
+      onHome={handleHome}
+      onSaveSettings={handleSaveSettings}
+      onToggleExtension={handleToggleExtension}
+      onRemoveExtension={handleRemoveExtension}
+      onRefreshExtensions={handleRefreshExtensions}
+      onAddBookmark={handleAddBookmark}
+      onRemoveBookmark={handleRemoveBookmark}
+      onClearHistory={handleClearHistory}
+      onToggleShieldSite={handleToggleShieldSite}
+      onConsoleLog={handleConsoleLog}
+      onNetworkRequest={handleNetworkRequest}
+      onClearConsole={handleClearConsole}
+      onClearNetwork={handleClearNetwork}
+      onExecuteDevToolsCommand={handleExecuteDevToolsCommand}
+      cosmeticCss={cosmeticCss}
+    />
   );
 };
 

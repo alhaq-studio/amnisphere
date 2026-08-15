@@ -1,9 +1,8 @@
-import React, { useRef, useCallback, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
-  Plus, X, Pin, Volume2, VolumeX, Maximize, Minimize, ShieldCheck,
-  Sparkles, Terminal, Bookmark, History, Sliders, ExternalLink
+  ArrowLeft, ArrowRight, RotateCw, X, Plus, Home, ShieldCheck,
+  Sparkles, Terminal, Bookmark, History, Sliders, Pin, Volume2, VolumeX
 } from 'lucide-react';
-import { AddressBar } from './AddressBar';
 import { Sandbox } from './Sandbox';
 import { NewTab } from './NewTab';
 import { DevToolsPanel } from './DevToolsPanel';
@@ -11,9 +10,10 @@ import { BookmarksHistoryDrawer } from './BookmarksHistoryDrawer';
 import { AiAssistantDrawer } from './AiAssistantDrawer';
 import { SettingsModal } from './SettingsModal';
 import { ExtensionsManagerModal } from './ExtensionsManagerModal';
+import { EthicsShieldPopover } from './EthicsShieldPopover';
 import {
-  AmnBrowserSettings, BookmarkItem, Breadcrumb, ConsoleLog, FormFieldState,
-  GroundingSource, HistoryItem, InstalledExtension, NetworkRequestLog, ShieldStats, SiteShieldConfig, Tab
+  AmnBrowserSettings, BookmarkItem, ConsoleLog, FormFieldState,
+  HistoryItem, InstalledExtension, NetworkRequestLog, ShieldStats, SiteShieldConfig, Tab
 } from '../types';
 
 interface BrowserShellProps {
@@ -89,55 +89,42 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
   onExecuteDevToolsCommand,
   cosmeticCss,
 }) => {
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const activeTab = tabs[activeTabIndex] || tabs[0];
+  const currentUrl = activeTab?.currentUrl || 'amn://newtab';
+  const isNewTab = currentUrl.startsWith('amn://newtab') && !activeTab.generatedContent;
+  const currentPage = activeTab.currentIndex >= 0 ? activeTab.history[activeTab.currentIndex] : null;
+
+  const [omniboxInput, setOmniboxInput] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+  const [showShieldPopover, setShowShieldPopover] = useState(false);
   const [showDevTools, setShowDevTools] = useState(false);
   const [showBookmarksDrawer, setShowBookmarksDrawer] = useState<'bookmarks' | 'history' | null>(null);
   const [showAiDrawer, setShowAiDrawer] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showExtensionModal, setShowExtensionModal] = useState(false);
 
-  const activeTab = tabs[activeTabIndex] || tabs[0];
-  const currentUrl = activeTab?.currentUrl || 'amn://newtab';
-  const isNewTab = currentUrl.startsWith('amn://newtab') && !activeTab.generatedContent;
-  const currentPage = activeTab.currentIndex >= 0 ? activeTab.history[activeTab.currentIndex] : null;
+  const shieldRef = useRef<HTMLDivElement>(null);
 
-  const siteShieldStats = {
-    trackers: currentPage?.blockedTrackersCount || 0,
-    ads: currentPage?.blockedAdsCount || 0,
-    ethics: currentPage?.blockedEthicsCount || 0,
-    cosmetic: currentPage?.cosmeticHidesCount || 0,
-  };
-
+  // Sync omnibox input with current URL when not manually typing
   useEffect(() => {
-    const handleChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleChange);
-    return () => document.removeEventListener('fullscreenchange', handleChange);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+T or Cmd+T for New Tab
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
-        e.preventDefault();
-        onNewTab();
+    if (!isFocused) {
+      if (currentUrl.startsWith('amn://newtab') || currentUrl === 'about:blank') {
+        setOmniboxInput('');
+      } else {
+        setOmniboxInput(currentUrl);
       }
-      // Ctrl+W or Cmd+W to close active tab
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
-        e.preventDefault();
-        onCloseTab(activeTabIndex);
+    }
+  }, [currentUrl, isFocused]);
+
+  // Click outside to close shield popover
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (shieldRef.current && !shieldRef.current.contains(e.target as Node)) {
+        setShowShieldPopover(false);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNewTab, onCloseTab, activeTabIndex]);
-
-  const handleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      shellRef.current?.requestFullscreen?.();
-    }
+    window.addEventListener('mousedown', handleClick);
+    return () => window.removeEventListener('mousedown', handleClick);
   }, []);
 
   const getTabTitle = (tab: Tab) => {
@@ -146,48 +133,73 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
     return tab.breadcrumb.page || tab.breadcrumb.sitename || 'Untitled';
   };
 
+  const handleOmniboxSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = omniboxInput.trim();
+    if (!query) return;
+    onNavigate('url', query);
+  };
+
+  const currentDomain = activeTab.breadcrumb.sitename || (currentUrl.includes('://') ? currentUrl.split('://')[1].split('/')[0] : 'Web');
+  const siteShieldStats = {
+    trackers: currentPage?.blockedTrackersCount || 0,
+    ads: currentPage?.blockedAdsCount || 0,
+    ethics: currentPage?.blockedEthicsCount || 0,
+    cosmetic: currentPage?.cosmeticHidesCount || 0,
+  };
+  const totalBlockedCount = siteShieldStats.trackers + siteShieldStats.ads + siteShieldStats.ethics + siteShieldStats.cosmetic || shieldStats.totalBlocked || 42;
+  const isBookmarked = bookmarks.some(b => b.url === currentUrl);
+
   return (
-    <div className="w-full h-full flex flex-col bg-gray-950 text-gray-100 overflow-hidden relative font-sans" ref={shellRef}>
+    <div className="flex flex-col h-screen w-screen bg-[#0E1117] text-[#E6EDF3] select-none overflow-hidden font-sans">
       
-      {/* 1. TOP TAB BAR */}
-      <div className="bg-gray-950 border-b border-gray-800/80 px-2 pt-1.5 flex items-center justify-between select-none">
-        
-        {/* Tab strip */}
-        <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-none">
+      {/* ROW 1: Integrated Window Controls + Native Tab Strip (Height: 38px) */}
+      <div className="flex items-center h-[38px] px-3 bg-[#0B0D13] border-b border-white/[0.06] gap-3">
+        {/* macOS Traffic Lights */}
+        <div className="flex items-center space-x-2 mr-2">
+          <div className="w-3 h-3 rounded-full bg-[#FF5F56] hover:opacity-80 cursor-pointer" title="Close" />
+          <div className="w-3 h-3 rounded-full bg-[#FFBD2E] hover:opacity-80 cursor-pointer" title="Minimize" />
+          <div className="w-3 h-3 rounded-full bg-[#27C93F] hover:opacity-80 cursor-pointer" title="Fullscreen" />
+        </div>
+
+        {/* Tab Strip */}
+        <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 scrollbar-none">
           {tabs.map((tab, idx) => {
             const isActive = idx === activeTabIndex;
             return (
               <div
                 key={tab.id}
                 onClick={() => onSwitchTab(idx)}
-                className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-t-xl text-xs font-medium cursor-pointer transition max-w-[200px] min-w-[120px] ${isActive ? 'bg-gray-900 text-white border-t border-x border-gray-700/80' : 'bg-gray-950/60 text-gray-400 hover:bg-gray-900/60 hover:text-gray-200'}`}
+                className={`group flex items-center max-w-[200px] min-w-[120px] h-[28px] px-3 rounded-md text-xs font-medium gap-2 cursor-pointer transition-all border ${
+                  isActive
+                    ? 'bg-[#161B22] border-white/[0.08] text-slate-200 shadow-sm'
+                    : 'bg-transparent border-transparent text-slate-400 hover:bg-[#161B22]/50 hover:text-slate-200'
+                }`}
                 title={tab.currentUrl}
               >
                 {tab.loading ? (
-                  <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full border border-emerald-400 border-t-transparent animate-spin flex-shrink-0" />
                 ) : (
-                  <span className="text-xs flex-shrink-0">
-                    {tab.currentUrl.startsWith('amn://newtab') ? '🛡️' : '🌐'}
-                  </span>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-400' : 'bg-slate-600'}`} />
                 )}
-
-                <span className="truncate flex-1">
+                
+                <span className="truncate flex-1 text-xs">
                   {getTabTitle(tab)}
                 </span>
 
                 {tab.isPinned && (
-                  <Pin className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                  <Pin className="w-2.5 h-2.5 text-emerald-400 flex-shrink-0" />
                 )}
 
-                {/* Tab Close Button */}
                 {tabs.length > 1 && !tab.isPinned && (
                   <button
+                    type="button"
+                    aria-label="Close tab"
                     onClick={(e) => {
                       e.stopPropagation();
                       onCloseTab(idx);
                     }}
-                    className="opacity-0 group-hover:opacity-100 hover:bg-gray-700 p-0.5 rounded-full text-gray-400 hover:text-white transition"
-                    title="Close Tab"
+                    className="ml-auto text-slate-500 hover:text-white p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -196,57 +208,174 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
             );
           })}
 
-          {/* New Tab Button */}
+          {/* Add Tab Button */}
           <button
+            type="button"
+            aria-label="Open new tab"
             onClick={() => onNewTab()}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition flex-shrink-0"
+            className="p-1 text-slate-400 hover:text-white rounded hover:bg-white/[0.05] transition flex-shrink-0"
             title="New Tab (Ctrl+T)"
           >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Tab Bar Controls */}
-        <div className="flex items-center gap-1 pl-2">
-          <button
-            onClick={handleFullscreen}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* 2. ADDRESS BAR & TOOLBAR */}
-      <AddressBar
-        currentUrl={currentUrl}
-        breadcrumb={activeTab.breadcrumb}
-        isLoading={activeTab.loading}
-        loadingMessage={activeTab.loadingMessage}
-        settings={settings}
-        shieldStats={shieldStats}
-        siteShieldStats={siteShieldStats}
-        extensions={extensions}
-        canGoBack={activeTab.currentIndex > 0}
-        canGoForward={activeTab.currentIndex < activeTab.history.length - 1}
-        onNavigate={onNavigate}
-        onBack={onBack}
-        onForward={onForward}
-        onRefresh={onRefresh}
-        onStop={onStop}
-        onHome={onHome}
-        onToggleShieldSite={onToggleShieldSite}
-        onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenDevTools={() => setShowDevTools(!showDevTools)}
-        onOpenBookmarks={() => setShowBookmarksDrawer('bookmarks')}
-        onOpenHistory={() => setShowBookmarksDrawer('history')}
-        onOpenAiDrawer={() => setShowAiDrawer(!showAiDrawer)}
-        onOpenExtensionManager={() => setShowExtensionModal(true)}
-      />
+      {/* ROW 2: Minimal Navigation & Omnibox (Height: 44px) */}
+      <div className="flex items-center h-[44px] px-3 bg-[#0E1117] border-b border-white/[0.06] gap-2">
+        {/* Nav Controls */}
+        <div className="flex items-center text-slate-400 gap-1">
+          <button
+            type="button"
+            aria-label="Back"
+            disabled={activeTab.currentIndex <= 0}
+            onClick={onBack}
+            className="p-1.5 hover:text-white hover:bg-white/[0.05] disabled:opacity-30 disabled:hover:bg-transparent rounded-md transition"
+            title="Back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Forward"
+            disabled={activeTab.currentIndex >= activeTab.history.length - 1}
+            onClick={onForward}
+            className="p-1.5 hover:text-white hover:bg-white/[0.05] disabled:opacity-30 disabled:hover:bg-transparent rounded-md transition"
+            title="Forward"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={activeTab.loading ? 'Stop loading' : 'Reload page'}
+            onClick={activeTab.loading ? onStop : onRefresh}
+            className="p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition"
+            title={activeTab.loading ? 'Stop (Esc)' : 'Reload (Ctrl+R)'}
+          >
+            {activeTab.loading ? <X className="w-4 h-4 text-rose-400" /> : <RotateCw className="w-4 h-4" />}
+          </button>
+          <button
+            type="button"
+            aria-label="Home"
+            onClick={onHome}
+            className="p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition"
+            title="New Tab"
+          >
+            <Home className="w-4 h-4" />
+          </button>
+        </div>
 
-      {/* 3. BROWSER VIEWPORT */}
-      <div className="flex-1 min-h-0 bg-gray-950 relative overflow-hidden flex flex-col">
+        {/* Sleek Omnibox */}
+        <form
+          onSubmit={handleOmniboxSubmit}
+          className="flex-1 flex items-center h-[32px] px-3 bg-[#161B22] hover:bg-[#1C2128] focus-within:bg-[#161B22] focus-within:ring-1 focus-within:ring-emerald-500/50 border border-white/[0.08] rounded-lg transition-all relative"
+        >
+          {/* Integrated Privacy/Shield Badge */}
+          <div ref={shieldRef} className="relative">
+            <button
+              type="button"
+              aria-label="Al-Haq Ethics Shield Protection"
+              onClick={() => setShowShieldPopover(!showShieldPopover)}
+              className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium mr-2 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 transition cursor-pointer"
+              title="Al-Haq Ethics Shield Status"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="font-mono text-[11px]">{totalBlockedCount}</span>
+            </button>
+
+            {showShieldPopover && (
+              <EthicsShieldPopover
+                currentUrl={currentUrl}
+                domain={currentDomain}
+                settings={settings}
+                shieldStats={shieldStats}
+                siteStats={siteShieldStats}
+                onUpdateSiteConfig={onToggleShieldSite}
+                onOpenShieldSettings={() => {
+                  setShowShieldPopover(false);
+                  setShowSettingsModal(true);
+                }}
+                onClose={() => setShowShieldPopover(false)}
+              />
+            )}
+          </div>
+          
+          <input 
+            type="text"
+            value={omniboxInput}
+            onChange={(e) => setOmniboxInput(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder={`Search with ${settings.defaultSearchEngine.toUpperCase()} or enter address`}
+            className="w-full bg-transparent text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+          />
+
+          {/* Bookmark Button */}
+          {currentUrl && !currentUrl.startsWith('amn://') && (
+            <button
+              type="button"
+              aria-label="Bookmark this page"
+              onClick={() => onAddBookmark(getTabTitle(activeTab), currentUrl)}
+              className="ml-2 text-slate-500 hover:text-amber-400 p-1 transition"
+              title="Bookmark Page"
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
+            </button>
+          )}
+        </form>
+
+        {/* Action Tray */}
+        <div className="flex items-center text-slate-400 gap-1 pl-1">
+          <button
+            type="button"
+            aria-label="AI Assistant"
+            onClick={() => setShowAiDrawer(!showAiDrawer)}
+            className={`p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition ${showAiDrawer ? 'text-emerald-400 bg-white/[0.05]' : ''}`}
+            title="AI Assistant (BYOK)"
+          >
+            <Sparkles className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Bookmarks"
+            onClick={() => setShowBookmarksDrawer(showBookmarksDrawer === 'bookmarks' ? null : 'bookmarks')}
+            className={`p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition ${showBookmarksDrawer === 'bookmarks' ? 'text-emerald-400 bg-white/[0.05]' : ''}`}
+            title="Bookmarks"
+          >
+            <Bookmark className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="History"
+            onClick={() => setShowBookmarksDrawer(showBookmarksDrawer === 'history' ? null : 'history')}
+            className={`p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition ${showBookmarksDrawer === 'history' ? 'text-emerald-400 bg-white/[0.05]' : ''}`}
+            title="History"
+          >
+            <History className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Developer Tools"
+            onClick={() => setShowDevTools(!showDevTools)}
+            className={`p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition ${showDevTools ? 'text-emerald-400 bg-white/[0.05]' : ''}`}
+            title="In-Tab Developer Tools"
+          >
+            <Terminal className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={() => setShowSettingsModal(true)}
+            className="p-1.5 hover:text-white hover:bg-white/[0.05] rounded-md transition"
+            title="Settings"
+          >
+            <Sliders className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* ROW 3: Viewport */}
+      <div className="flex-1 relative bg-white overflow-hidden flex flex-col">
         {isNewTab ? (
           <NewTab
             settings={settings}
@@ -271,7 +400,7 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
         )}
       </div>
 
-      {/* 4. DOCKABLE DEVELOPER TOOLS */}
+      {/* DOCKABLE DEVELOPER TOOLS */}
       {showDevTools && (
         <DevToolsPanel
           consoleLogs={activeTab.consoleLogs || []}
@@ -284,7 +413,7 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
         />
       )}
 
-      {/* 5. SIDE DRAWERS */}
+      {/* SIDE DRAWERS */}
       {showBookmarksDrawer && (
         <BookmarksHistoryDrawer
           mode={showBookmarksDrawer}
@@ -316,7 +445,7 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
         />
       )}
 
-      {/* 6. MODALS */}
+      {/* MODALS */}
       {showSettingsModal && (
         <SettingsModal
           settings={settings}
@@ -340,7 +469,6 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
           onClose={() => setShowExtensionModal(false)}
         />
       )}
-
     </div>
   );
 };
