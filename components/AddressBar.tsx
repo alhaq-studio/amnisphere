@@ -5,7 +5,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { AmnBrowserSettings, Breadcrumb, InstalledExtension, SearchEngine, ShieldStats, SiteShieldConfig } from '../types';
-import { SEARCH_ENGINES, breadcrumbToDisplay, parseBreadcrumb } from '../utils/urlHelpers';
+import { SEARCH_ENGINES, breadcrumbToDisplay, parseBreadcrumb, resolveOmnibarInput } from '../utils/urlHelpers';
 import { EthicsShieldPopover } from './EthicsShieldPopover';
 
 interface AddressBarProps {
@@ -110,14 +110,8 @@ export const AddressBar: React.FC<AddressBarProps> = ({
     e.preventDefault();
     const trimmed = inputVal.trim();
     if (!trimmed) return;
-    const isUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('amn://') || (trimmed.includes('.') && !trimmed.includes(' '));
-    if (isUrl) {
-      onNavigate('url', trimmed);
-    } else {
-      const eng = SEARCH_ENGINES[selectedEngine] || SEARCH_ENGINES.duckduckgo;
-      const searchUrl = eng.searchUrl.replace('%s', encodeURIComponent(trimmed));
-      onNavigate('url', searchUrl);
-    }
+    const resolved = resolveOmnibarInput(trimmed, selectedEngine);
+    onNavigate('url', resolved.url);
     setHasEdited(false);
     inputRef.current?.blur();
   };
