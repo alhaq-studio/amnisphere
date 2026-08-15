@@ -200,7 +200,7 @@ Create a complete, detailed, realistic-looking, ethics-aligned web page based on
     }
 
     // Call Gemini API server-side
-    const modelName = aiSettings?.geminiModel || "gemini-3.7-flash";
+    const modelName = aiSettings?.geminiModel || "gemini-2.5-flash";
 
     try {
       const config: any = {
@@ -306,7 +306,7 @@ Create a complete, detailed, realistic-looking, ethics-aligned web page based on
 
     try {
       const response = await ai.models.generateContent({
-        model: aiSettings.geminiModel || "gemini-3.7-flash",
+        model: aiSettings.geminiModel || "gemini-2.5-flash",
         contents: `Provide an objective, concise, and ethical summary of the following web page content in 3-4 bullet points:\n\n${(text || "").substring(0, 8000)}`,
       });
       res.json({ summary: response.text || "No summary generated." });

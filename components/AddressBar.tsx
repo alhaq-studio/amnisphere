@@ -110,7 +110,14 @@ export const AddressBar: React.FC<AddressBarProps> = ({
     e.preventDefault();
     const trimmed = inputVal.trim();
     if (!trimmed) return;
-    onNavigate('url', trimmed);
+    const isUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('amn://') || (trimmed.includes('.') && !trimmed.includes(' '));
+    if (isUrl) {
+      onNavigate('url', trimmed);
+    } else {
+      const eng = SEARCH_ENGINES[selectedEngine] || SEARCH_ENGINES.duckduckgo;
+      const searchUrl = eng.searchUrl.replace('%s', encodeURIComponent(trimmed));
+      onNavigate('url', searchUrl);
+    }
     setHasEdited(false);
     inputRef.current?.blur();
   };

@@ -62,8 +62,16 @@ export const NewTab: React.FC<NewTabProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
-    onNavigate('url', query.trim());
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    const isUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('amn://') || (trimmed.includes('.') && !trimmed.includes(' '));
+    if (isUrl) {
+      onNavigate('url', trimmed);
+    } else {
+      const selectedEng = SEARCH_ENGINES[activeEngine] || SEARCH_ENGINES.duckduckgo;
+      const searchUrl = selectedEng.searchUrl.replace('%s', encodeURIComponent(trimmed));
+      onNavigate('url', searchUrl);
+    }
   };
 
   const handleTopicClick = (topic: string) => {

@@ -146,7 +146,12 @@ export const App: React.FC = () => {
   }, [updateActiveTab]);
 
   const handleExecuteDevToolsCommand = useCallback((code: string) => {
-    window.postMessage({ type: 'EXEC_COMMAND', code }, '*');
+    try {
+      const iframe = document.querySelector('iframe');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'EXEC_COMMAND', code }, '*');
+      }
+    } catch {}
     handleConsoleLog({
       id: `exec-${Date.now()}`,
       level: 'log',
@@ -437,6 +442,7 @@ export const App: React.FC = () => {
       const prevPage = activeTab.history[prevIndex];
       updateActiveTab(tab => ({
         ...tab,
+        currentUrl: prevPage.url,
         currentIndex: prevIndex,
         breadcrumb: prevPage.breadcrumb,
         generatedContent: prevPage.html,
@@ -453,6 +459,7 @@ export const App: React.FC = () => {
       const nextPage = activeTab.history[nextIndex];
       updateActiveTab(tab => ({
         ...tab,
+        currentUrl: nextPage.url,
         currentIndex: nextIndex,
         breadcrumb: nextPage.breadcrumb,
         generatedContent: nextPage.html,

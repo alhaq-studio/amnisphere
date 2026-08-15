@@ -21,9 +21,9 @@ const SHELL_HTML = `<!DOCTYPE html>
     <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: blob: https:; connect-src 'none'; frame-src 'none';">
     <script src="https://cdn.tailwindcss.com"></script>
-    <style id="amnbrowser-cosmetic-shield"></style>
-    <style id="amnbrowser-extension-styles"></style>
-    <script id="amnbrowser-core-api">
+    <style id="amnisphere-cosmetic-shield"></style>
+    <style id="amnisphere-extension-styles"></style>
+    <script id="amnisphere-core-api">
       // Capture form field state
       function getFormState() {
         const fields = [];
@@ -151,13 +151,13 @@ const SHELL_HTML = `<!DOCTYPE html>
           document.documentElement.style.colorScheme = e.data.colorScheme || 'dark';
 
           // Update cosmetic filtering styles
-          const shieldStyle = document.getElementById('amnbrowser-cosmetic-shield');
+          const shieldStyle = document.getElementById('amnisphere-cosmetic-shield');
           if (shieldStyle && e.data.cosmeticCss) {
             shieldStyle.textContent = e.data.cosmeticCss;
           }
 
           // Update extension custom styles
-          const extStyle = document.getElementById('amnbrowser-extension-styles');
+          const extStyle = document.getElementById('amnisphere-extension-styles');
           if (extStyle && e.data.extensionCss) {
             extStyle.textContent = e.data.extensionCss;
           }
