@@ -257,6 +257,8 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
           />
         ) : (
           <Sandbox
+            url={activeTab.currentUrl}
+            isActive={!isNewTab}
             htmlContent={activeTab.generatedContent}
             cosmeticCss={cosmeticCss}
             onNavigate={onSandboxNavigate}
