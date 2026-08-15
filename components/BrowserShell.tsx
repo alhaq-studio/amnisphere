@@ -3,6 +3,7 @@ import {
   ArrowLeft, ArrowRight, RotateCw, X, Plus, Home, ShieldCheck,
   Sparkles, Terminal, Bookmark, History, Sliders, Pin, Volume2, VolumeX
 } from 'lucide-react';
+import { AddressBar } from './AddressBar';
 import { Sandbox } from './Sandbox';
 import { NewTab } from './NewTab';
 import { DevToolsPanel } from './DevToolsPanel';
@@ -265,64 +266,55 @@ export const BrowserShell: React.FC<BrowserShellProps> = ({
           </button>
         </div>
 
-        {/* Sleek Omnibox */}
-        <form
-          onSubmit={handleOmniboxSubmit}
-          className="flex-1 flex items-center h-[32px] px-3 bg-[#161B22] hover:bg-[#1C2128] focus-within:bg-[#161B22] focus-within:ring-1 focus-within:ring-emerald-500/50 border border-white/[0.08] rounded-lg transition-all relative"
-        >
-          {/* Integrated Privacy/Shield Badge */}
-          <div ref={shieldRef} className="relative">
-            <button
-              type="button"
-              aria-label="Al-Haq Ethics Shield Protection"
-              onClick={() => setShowShieldPopover(!showShieldPopover)}
-              className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium mr-2 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 transition cursor-pointer"
-              title="Al-Haq Ethics Shield Status"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span className="font-mono text-[11px]">{totalBlockedCount}</span>
-            </button>
+        {/* Sleek Omnibox AddressBar */}
+        <AddressBar
+          currentUrl={currentUrl}
+          onNavigate={(url) => onNavigate('url', url)}
+          defaultEngine={settings.defaultSearchEngine}
+          shieldBadge={
+            <div ref={shieldRef} className="relative mr-2 flex-shrink-0">
+              <button
+                type="button"
+                aria-label="Al-Haq Ethics Shield Protection"
+                onClick={() => setShowShieldPopover(!showShieldPopover)}
+                className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 transition cursor-pointer"
+                title="Al-Haq Ethics Shield Status"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="font-mono text-[11px]">{totalBlockedCount}</span>
+              </button>
 
-            {showShieldPopover && (
-              <EthicsShieldPopover
-                currentUrl={currentUrl}
-                domain={currentDomain}
-                settings={settings}
-                shieldStats={shieldStats}
-                siteStats={siteShieldStats}
-                onUpdateSiteConfig={onToggleShieldSite}
-                onOpenShieldSettings={() => {
-                  setShowShieldPopover(false);
-                  setShowSettingsModal(true);
-                }}
-                onClose={() => setShowShieldPopover(false)}
-              />
-            )}
-          </div>
-          
-          <input 
-            type="text"
-            value={omniboxInput}
-            onChange={(e) => setOmniboxInput(e.target.value)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder={`Search with ${settings.defaultSearchEngine.toUpperCase()} or enter address`}
-            className="w-full bg-transparent text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
-          />
-
-          {/* Bookmark Button */}
-          {currentUrl && !currentUrl.startsWith('amn://') && (
-            <button
-              type="button"
-              aria-label="Bookmark this page"
-              onClick={() => onAddBookmark(getTabTitle(activeTab), currentUrl)}
-              className="ml-2 text-slate-500 hover:text-amber-400 p-1 transition"
-              title="Bookmark Page"
-            >
-              <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
-            </button>
-          )}
-        </form>
+              {showShieldPopover && (
+                <EthicsShieldPopover
+                  currentUrl={currentUrl}
+                  domain={currentDomain}
+                  settings={settings}
+                  shieldStats={shieldStats}
+                  siteStats={siteShieldStats}
+                  onUpdateSiteConfig={onToggleShieldSite}
+                  onOpenShieldSettings={() => {
+                    setShowShieldPopover(false);
+                    setShowSettingsModal(true);
+                  }}
+                  onClose={() => setShowShieldPopover(false)}
+                />
+              )}
+            </div>
+          }
+          actions={
+            currentUrl && !currentUrl.startsWith('amn://') ? (
+              <button
+                type="button"
+                aria-label="Bookmark this page"
+                onClick={() => onAddBookmark(getTabTitle(activeTab), currentUrl)}
+                className="ml-2 text-slate-500 hover:text-amber-400 p-1 transition flex-shrink-0"
+                title="Bookmark Page"
+              >
+                <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
+              </button>
+            ) : null
+          }
+        />
 
         {/* Action Tray */}
         <div className="flex items-center text-slate-400 gap-1 pl-1">

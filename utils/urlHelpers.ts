@@ -87,6 +87,13 @@ export function resolveOmnibarInput(input: string, searchEngine: SearchEngine = 
 }
 
 /**
+ * Resolves user input into a target navigation URL string directly
+ */
+export function resolveNavigationUrl(input: string, searchEngine: SearchEngine = 'duckduckgo'): string {
+  return resolveOmnibarInput(input, searchEngine).url;
+}
+
+/**
  * Parses a link href into a human-readable page breadcrumb trail.
  */
 export function parsePageFromHref(href: string): string {
