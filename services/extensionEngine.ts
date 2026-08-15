@@ -11,12 +11,13 @@ export class ExtensionEngine {
 
   public loadExtensions(): InstalledExtension[] {
     const saved = StorageService.loadInstalledExtensions();
-    if (saved && saved.length > 0) {
-      this.extensions = saved;
+    if (saved && Array.isArray(saved)) {
+      // Filter out any obsolete built-in bloated extensions if previously stored in localStorage
+      this.extensions = saved.filter(ext => !ext.isBuiltIn);
     } else {
-      this.extensions = BUILTIN_EXTENSIONS;
-      StorageService.saveInstalledExtensions(this.extensions);
+      this.extensions = [];
     }
+    StorageService.saveInstalledExtensions(this.extensions);
     return this.extensions;
   }
 

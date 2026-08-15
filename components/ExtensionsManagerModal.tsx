@@ -138,32 +138,40 @@ document.body.appendChild(badge);
           
           {tab === 'catalog' && (
             <div className="space-y-3">
-              {extensions.map((ext) => (
-                <div key={ext.id} className="p-3.5 bg-gray-950/60 border border-gray-800 rounded-xl flex items-center justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400 flex-shrink-0">
-                      <Puzzle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white">{ext.name}</span>
-                        <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">v{ext.version}</span>
-                        <span className="text-[10px] bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded">MV{ext.manifestVersion}</span>
+              {extensions.length === 0 ? (
+                <div className="text-center py-16 text-gray-500 text-xs space-y-3 bg-gray-950/40 border border-gray-800 rounded-xl p-8">
+                  <Puzzle className="w-10 h-10 mx-auto text-gray-700" />
+                  <p className="font-semibold text-gray-300 text-sm">Zero Extensions Installed</p>
+                  <p className="text-[11px] text-gray-500 max-w-md mx-auto">
+                    AmniSphere is running in clean, bloat-free core mode. You can create custom TypeScript extensions or import Manifest JSON modules using the tabs above.
+                  </p>
+                </div>
+              ) : (
+                extensions.map((ext) => (
+                  <div key={ext.id} className="p-3.5 bg-gray-950/60 border border-gray-800 rounded-xl flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400 flex-shrink-0">
+                        <Puzzle className="w-4 h-4" />
                       </div>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{ext.description}</p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white">{ext.name}</span>
+                          <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">v{ext.version}</span>
+                          <span className="text-[10px] bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded">MV{ext.manifestVersion}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-0.5">{ext.description}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={ext.enabled}
-                      onChange={() => {
-                        extensionEngineInstance.toggleExtension(ext.id);
-                        onRefreshExtensions();
-                      }}
-                      className="w-4 h-4 accent-sky-500 cursor-pointer"
-                    />
-                    {!ext.isBuiltIn && (
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={ext.enabled}
+                        onChange={() => {
+                          extensionEngineInstance.toggleExtension(ext.id);
+                          onRefreshExtensions();
+                        }}
+                        className="w-4 h-4 accent-sky-500 cursor-pointer"
+                      />
                       <button
                         onClick={() => {
                           extensionEngineInstance.removeExtension(ext.id);
@@ -173,10 +181,10 @@ document.body.appendChild(badge);
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
 

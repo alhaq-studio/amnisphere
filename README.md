@@ -33,13 +33,9 @@
 - **✨ BYOK (Bring-Your-Own-Key) AI Engine**:
   - Zero cloud reliance by default — complete offline fallback generation when no API keys are configured.
   - Optional support for Google Gemini, OpenAI, and local LLM endpoints (Ollama / LocalAI) with Server-Sent Events (SSE) streaming.
-- **🧩 Built-In Privacy & Utility Extensions**:
-  - *Al-Haq Daily Quran & Hadith Reflector*
-  - *Islamic Prayer Times & Hijri Calendar*
-  - *Al-Haq Halal & Ethics Web Inspector*
-  - *Dark Reader Pro (Eye-Care OLED Mode)*
-  - *Clean Reader Mode (Typography & Paywall Clutter Stripper)*
-  - *HTTPS Everywhere & Transport Encryption Guard*
+- **🧩 Ultra-Lean Extension Engine & UserScripts**:
+  - Zero bloated built-in extensions — ultra-fast, minimal memory footprint by default.
+  - Fully sandboxed WebExtensions runner supporting user-created TypeScript UserScripts and standard Manifest V2 / V3 JSON modules.
 - **🛠️ In-Tab Developer Tools**:
   - Live console streaming and network inspector directly embedded in the browser shell.
 

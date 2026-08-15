@@ -326,47 +326,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  {extensions.map((ext) => (
-                    <div
-                      key={ext.id}
-                      className="p-4 bg-gray-950/50 border border-gray-800 rounded-xl flex items-center justify-between hover:border-gray-700 transition"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-700/60 flex items-center justify-center text-sky-400 flex-shrink-0 mt-0.5">
-                          <Puzzle className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-white">{ext.name}</span>
-                            <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">
-                              v{ext.version}
-                            </span>
-                            <span className="text-[10px] bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded border border-sky-800/60">
-                              MV{ext.manifestVersion}
-                            </span>
-                            {ext.isBuiltIn && (
-                              <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800/60">
-                                Built-in
+                  {extensions.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-950/40 border border-gray-800 rounded-xl space-y-2">
+                      <Puzzle className="w-8 h-8 mx-auto text-gray-700" />
+                      <div className="text-sm font-semibold text-gray-400">Zero Extensions Installed</div>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                        AmniSphere is running in clean, ultra-fast core mode with no bloated built-in scripts. You can load custom Manifest V2/V3 extensions or UserScripts on-demand.
+                      </p>
+                    </div>
+                  ) : (
+                    extensions.map((ext) => (
+                      <div
+                        key={ext.id}
+                        className="p-4 bg-gray-950/50 border border-gray-800 rounded-xl flex items-center justify-between hover:border-gray-700 transition"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-700/60 flex items-center justify-center text-sky-400 flex-shrink-0 mt-0.5">
+                            <Puzzle className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-white">{ext.name}</span>
+                              <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">
+                                v{ext.version}
                               </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1">{ext.description}</p>
-                          <div className="flex gap-2 mt-2 text-[10px] text-gray-500">
-                            <span>Author: {ext.author}</span>
-                            <span>·</span>
-                            <span>Permissions: {ext.permissions.join(', ') || 'None'}</span>
+                              <span className="text-[10px] bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded border border-sky-800/60">
+                                MV{ext.manifestVersion}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">{ext.description}</p>
+                            <div className="flex gap-2 mt-2 text-[10px] text-gray-500">
+                              <span>Author: {ext.author}</span>
+                              <span>·</span>
+                              <span>Permissions: {ext.permissions.join(', ') || 'None'}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={ext.enabled}
-                          onChange={() => onToggleExtension(ext.id)}
-                          className="w-5 h-5 accent-sky-500 cursor-pointer"
-                        />
-                        {!ext.isBuiltIn && (
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={ext.enabled}
+                            onChange={() => onToggleExtension(ext.id)}
+                            className="w-5 h-5 accent-sky-500 cursor-pointer"
+                          />
                           <button
                             onClick={() => onRemoveExtension(ext.id)}
                             className="p-1.5 text-gray-500 hover:text-rose-400 rounded hover:bg-gray-800 transition"
@@ -374,10 +377,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             )}
