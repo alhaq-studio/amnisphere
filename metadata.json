@@ -1,0 +1,8 @@
+{
+  "name": "AmniSphere",
+  "description": "Privacy-first, Islamic ethics-aligned web browser with zero tracking, Manifest V2/V3 extension sandbox, and Al-Haq Ethics Shield by Al-Haq Studio (alhaq.uk)",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
